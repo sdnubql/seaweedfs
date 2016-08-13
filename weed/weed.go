@@ -34,12 +34,18 @@ func setExitStatus(n int) {
 }
 
 func main() {
+	//定义日志的大小 32M
 	glog.MaxSize = 1024 * 1024 * 32
+	//设置随机数种子
 	rand.Seed(time.Now().UnixNano())
+	//设置使用说明
 	flag.Usage = usage
+	//对参数进行解析
 	flag.Parse()
 
+	//获取所以的 non-flag参数
 	args := flag.Args()
+	//如果参数长度小于1，显示使用说明
 	if len(args) < 1 {
 		usage()
 	}
