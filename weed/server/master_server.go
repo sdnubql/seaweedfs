@@ -16,14 +16,21 @@ import (
 	"github.com/gorilla/mux"
 )
 
+//master server的结构体
 type MasterServer struct {
-	port                    int
-	metaFolder              string
-	volumeSizeLimitMB       uint
-	pulseSeconds            int
+	//端口
+	port int
+	//元数据存放目录
+	metaFolder string
+	//存储卷大小
+	volumeSizeLimitMB uint
+	//心跳时间间隔
+	pulseSeconds int
+	//默认的复制级别
 	defaultReplicaPlacement string
-	garbageThreshold        string
-	guard                   *security.Guard
+	//垃圾回收的阈值
+	garbageThreshold string
+	guard            *security.Guard
 
 	Topo   *topology.Topology
 	vg     *topology.VolumeGrowth
@@ -32,6 +39,7 @@ type MasterServer struct {
 	bounedLeaderChan chan int
 }
 
+//master server构造函数
 func NewMasterServer(r *mux.Router, port int, metaFolder string,
 	volumeSizeLimitMB uint,
 	pulseSeconds int,

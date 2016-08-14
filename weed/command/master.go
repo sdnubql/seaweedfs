@@ -48,16 +48,21 @@ var (
 	//心跳间隔
 	mpulse = cmdMaster.Flag.Int("pulseSeconds", 5, "number of seconds between heartbeats")
 	//配置文件
-	confFile                = cmdMaster.Flag.String("conf", "/etc/weedfs/weedfs.conf", "Deprecating! xml configuration file")
+	confFile = cmdMaster.Flag.String("conf", "/etc/weedfs/weedfs.conf", "Deprecating! xml configuration file")
+	//默认的复制级别
 	defaultReplicaPlacement = cmdMaster.Flag.String("defaultReplication", "000", "Default replication type if not specified.")
 	//连接idle的时间
 	mTimeout = cmdMaster.Flag.Int("idleTimeout", 10, "connection idle seconds")
 	//最大cpu数
-	mMaxCpu               = cmdMaster.Flag.Int("maxCpu", 0, "maximum number of CPUs. 0 means all available CPUs")
-	garbageThreshold      = cmdMaster.Flag.String("garbageThreshold", "0.3", "threshold to vacuum and reclaim spaces")
+	mMaxCpu = cmdMaster.Flag.Int("maxCpu", 0, "maximum number of CPUs. 0 means all available CPUs")
+	//垃圾回收的阈值
+	garbageThreshold = cmdMaster.Flag.String("garbageThreshold", "0.3", "threshold to vacuum and reclaim spaces")
+	//ip白名单
 	masterWhiteListOption = cmdMaster.Flag.String("whiteList", "", "comma separated Ip addresses having write permission. No limit if empty.")
-	masterSecureKey       = cmdMaster.Flag.String("secure.secret", "", "secret to encrypt Json Web Token(JWT)")
-	masterCpuProfile      = cmdMaster.Flag.String("cpuprofile", "", "cpu profile output file")
+	//加密私钥
+	masterSecureKey = cmdMaster.Flag.String("secure.secret", "", "secret to encrypt Json Web Token(JWT)")
+	//记录cpuprofile的文件
+	masterCpuProfile = cmdMaster.Flag.String("cpuprofile", "", "cpu profile output file")
 
 	masterWhiteList []string
 )
@@ -95,14 +100,17 @@ func runMaster(cmd *Command, args []string) bool {
 		masterWhiteList = strings.Split(*masterWhiteListOption, ",")
 	}
 
+	//创建router
 	r := mux.NewRouter()
+	//创建master server
 	ms := weed_server.NewMasterServer(r, *mport, *metaFolder,
 		*volumeSizeLimitMB, *mpulse, *confFile, *defaultReplicaPlacement, *garbageThreshold,
 		masterWhiteList, *masterSecureKey,
 	)
-
+	//拼接监听的地址+端口
 	listeningAddress := *masterBindIp + ":" + strconv.Itoa(*mport)
 
+	//记录info级别日志
 	glog.V(0).Infoln("Start Seaweed Master", util.VERSION, "at", listeningAddress)
 
 	listener, e := util.NewListener(listeningAddress, time.Duration(*mTimeout)*time.Second)
