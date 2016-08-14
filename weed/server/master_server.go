@@ -57,6 +57,7 @@ func NewMasterServer(r *mux.Router, port int, metaFolder string,
 		garbageThreshold:        garbageThreshold,
 	}
 	ms.bounedLeaderChan = make(chan int, 16)
+	//发号器
 	seq := sequence.NewMemorySequencer()
 	var e error
 	if ms.Topo, e = topology.NewTopology("topo", confFile, seq,
