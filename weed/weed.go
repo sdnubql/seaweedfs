@@ -20,9 +20,13 @@ import (
 var IsDebug *bool
 var server *string
 
+//命令列表
 var commands = command.Commands
 
+//成功时的退出状态
 var exitStatus = 0
+
+//设置退出状态时的锁
 var exitMu sync.Mutex
 
 func setExitStatus(n int) {
@@ -53,7 +57,9 @@ func main() {
 	//具体的help
 	if args[0] == "help" {
 		help(args[1:])
+		//遍历命令列表,如果能找到匹配的命令，打印命令的默认值
 		for _, cmd := range commands {
+			//len(args) >= 2实际上只能取到==2 ，因为在help方法里面已经做了参数长度的判断
 			if len(args) >= 2 && cmd.Name() == args[1] && cmd.Run != nil {
 				fmt.Fprintf(os.Stderr, "Default Parameters:\n")
 				cmd.Flag.PrintDefaults()
