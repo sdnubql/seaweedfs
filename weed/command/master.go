@@ -78,6 +78,7 @@ func runMaster(cmd *Command, args []string) bool {
 		if err != nil {
 			glog.Fatal(err)
 		}
+		//性能监控当前进程的cpu，写到cpuprofile
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 		OnInterrupt(func() {
