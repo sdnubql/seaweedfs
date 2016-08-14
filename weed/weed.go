@@ -38,18 +38,19 @@ func main() {
 	glog.MaxSize = 1024 * 1024 * 32
 	//设置随机数种子
 	rand.Seed(time.Now().UnixNano())
-	//设置使用说明
+	//设置参数解析错误时，往标准错误打印的使用说明
 	flag.Usage = usage
 	//对参数进行解析
 	flag.Parse()
 
 	//获取所以的 non-flag参数
 	args := flag.Args()
-	//如果参数长度小于1，显示使用说明
+	//如果参数长度小于1，显示使用说明,其他什么也不做
 	if len(args) < 1 {
 		usage()
 	}
 
+	//具体的help
 	if args[0] == "help" {
 		help(args[1:])
 		for _, cmd := range commands {
@@ -61,12 +62,17 @@ func main() {
 		return
 	}
 
+	//遍历命令列表
 	for _, cmd := range commands {
+		//如果命令名称和参数一致，并且命令的Run不为nil，则进行具体的设置，运行
 		if cmd.Name() == args[0] && cmd.Run != nil {
+			//设置具体命令的usage
 			cmd.Flag.Usage = func() { cmd.Usage() }
+			//解析参数
 			cmd.Flag.Parse(args[1:])
 			args = cmd.Flag.Args()
 			IsDebug = cmd.IsDebug
+			//具体的执行命令，如果命令执行失败报错
 			if !cmd.Run(cmd, args) {
 				fmt.Fprintf(os.Stderr, "\n")
 				cmd.Flag.Usage()
@@ -125,20 +131,27 @@ func printUsage(w io.Writer) {
 	tmpl(w, usageTemplate, commands)
 }
 
+//使用说明具体的函数
 func usage() {
 	printUsage(os.Stderr)
+	//往标准错误打印说明内容
 	fmt.Fprintf(os.Stderr, "For Logging, use \"weed [logging_options] [command]\". The logging options are:\n")
+	//打印已定义参数的默认值
 	flag.PrintDefaults()
+	//退出,设置状态为2
 	os.Exit(2)
 }
 
 // help implements the 'help' command.
+//具体的weed help方法
 func help(args []string) {
+	//如果help 后的参数为0，直接打印usage,然后退出
 	if len(args) == 0 {
 		printUsage(os.Stdout)
 		// not exit 2: succeeded at 'weed help'.
 		return
 	}
+	//如果help后面的参数多于一个，显示错误
 	if len(args) != 1 {
 		fmt.Fprintf(os.Stderr, "usage: weed help command\n\nToo many arguments given.\n")
 		os.Exit(2) // failed at 'weed help'
@@ -146,6 +159,7 @@ func help(args []string) {
 
 	arg := args[0]
 
+	//遍历命令列表，如果参数和列表中的项匹配，显示具体的命令help
 	for _, cmd := range commands {
 		if cmd.Name() == arg {
 			tmpl(os.Stdout, helpTemplate, cmd)
@@ -154,16 +168,20 @@ func help(args []string) {
 		}
 	}
 
+	//help的命令 在命令列表里面找不到具体的命令时报错
 	fmt.Fprintf(os.Stderr, "Unknown help topic %#q.  Run 'weed help'.\n", arg)
 	os.Exit(2) // failed at 'weed help cmd'
 }
 
+//退出前需要执行的函数的slice
 var atexitFuncs []func()
 
+//添加需要退出前执行的函数
 func atexit(f func()) {
 	atexitFuncs = append(atexitFuncs, f)
 }
 
+//设置退出状态,如果定义了执行结束前回调的函数，执行函数
 func exit() {
 	for _, f := range atexitFuncs {
 		f()
