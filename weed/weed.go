@@ -29,11 +29,15 @@ var exitStatus = 0
 //设置退出状态时的锁
 var exitMu sync.Mutex
 
+//设置退出状态
 func setExitStatus(n int) {
+	//加锁
 	exitMu.Lock()
+	//判断状态并设置
 	if exitStatus < n {
 		exitStatus = n
 	}
+	//去掉锁
 	exitMu.Unlock()
 }
 
@@ -81,10 +85,14 @@ func main() {
 			//具体的执行命令，如果命令执行失败报错
 			if !cmd.Run(cmd, args) {
 				fmt.Fprintf(os.Stderr, "\n")
+				//打印此命令的使用说明
 				cmd.Flag.Usage()
+				//往标准错误打印说明
 				fmt.Fprintf(os.Stderr, "Default Parameters:\n")
+				//打印此命令的默认值
 				cmd.Flag.PrintDefaults()
 			}
+			//调用退出前需要执行的函数和设置退出的状态码
 			exit()
 			return
 		}
@@ -189,9 +197,11 @@ func atexit(f func()) {
 
 //设置退出状态,如果定义了执行结束前回调的函数，执行函数
 func exit() {
+	//遍历退出前需要执行的函数的slice，并执行
 	for _, f := range atexitFuncs {
 		f()
 	}
+	//设置退出状态
 	os.Exit(exitStatus)
 }
 
