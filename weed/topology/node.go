@@ -121,9 +121,13 @@ func (n *NodeImpl) RandomlyPickNodes(numberOfNodes int, filterFirstNodeFn func(d
 	glog.V(2).Infoln(n.Id(), "picking", numberOfNodes-1, "from rest", len(candidates), "node candidates")
 	//判断剩余节点数的容器长度是否为0
 	ret := len(restNodes) == 0
+	//循环遍历候选节点slice,没有看懂下面这么做的意义是啥？？？？？？？？？？？？？？？？
 	for k, node := range candidates {
+
 		if k < len(restNodes) {
+			//将节点加入剩余节点slice
 			restNodes[k] = node
+			//如果
 			if k == len(restNodes)-1 {
 				ret = true
 			}
