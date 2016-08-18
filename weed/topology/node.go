@@ -69,10 +69,15 @@ type NodeImpl struct {
 }
 
 // the first node must satisfy filterFirstNodeFn(), the rest nodes must have one free slot
+//随机选取节点，第一个节点需要满足filterFirstNodeFn，剩下的节点需要有一个空闲的槽
 func (n *NodeImpl) RandomlyPickNodes(numberOfNodes int, filterFirstNodeFn func(dn Node) error) (firstNode Node, restNodes []Node, err error) {
+	//初始化一个节点slice，长度为0，最大可能长度为节点的子节点数量
 	candidates := make([]Node, 0, len(n.children))
+	//定义错误的slice
 	var errs []string
+	//加锁
 	n.RLock()
+	//遍历子节点,如果节点满足filterFirstNodeFn，则添加到候选节点slice
 	for _, node := range n.children {
 		if err := filterFirstNodeFn(node); err == nil {
 			candidates = append(candidates, node)
@@ -81,27 +86,40 @@ func (n *NodeImpl) RandomlyPickNodes(numberOfNodes int, filterFirstNodeFn func(d
 		}
 	}
 	n.RUnlock()
+	//如果候选节点slice的长度为0，报错
 	if len(candidates) == 0 {
 		return nil, nil, errors.New("No matching data node found! \n" + strings.Join(errs, "\n"))
 	}
+	//从候选节点slice中随便选出来一个,作为主节点
 	firstNode = candidates[rand.Intn(len(candidates))]
+	//记录日志
 	glog.V(2).Infoln(n.Id(), "picked main node:", firstNode.Id())
 
+	//剩余节点的slice容器,个数为numberOfNodes -1
 	restNodes = make([]Node, numberOfNodes-1)
+	//清空候选节点slice容器
 	candidates = candidates[:0]
+	//加锁
 	n.RLock()
+	//遍历孩子节点
 	for _, node := range n.children {
+		//如果是刚才选中的第一个节点就continue
 		if node.Id() == firstNode.Id() {
 			continue
 		}
+		//如果子节点的剩余空间<=0 继续
 		if node.FreeSpace() <= 0 {
 			continue
 		}
+		//记录日志
 		glog.V(2).Infoln("select rest node candidate:", node.Id())
+		//符合条件的节点加入到剩余节点
 		candidates = append(candidates, node)
 	}
+	//去锁
 	n.RUnlock()
 	glog.V(2).Infoln(n.Id(), "picking", numberOfNodes-1, "from rest", len(candidates), "node candidates")
+	//判断剩余节点数的容器长度是否为0
 	ret := len(restNodes) == 0
 	for k, node := range candidates {
 		if k < len(restNodes) {
@@ -116,6 +134,7 @@ func (n *NodeImpl) RandomlyPickNodes(numberOfNodes int, filterFirstNodeFn func(d
 			}
 		}
 	}
+	//如果错误记录日志
 	if !ret {
 		glog.V(2).Infoln(n.Id(), "failed to pick", numberOfNodes-1, "from rest", len(candidates), "node candidates")
 		err = errors.New("Not enough data node found!")
