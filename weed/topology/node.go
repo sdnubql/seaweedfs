@@ -123,15 +123,16 @@ func (n *NodeImpl) RandomlyPickNodes(numberOfNodes int, filterFirstNodeFn func(d
 	ret := len(restNodes) == 0
 	//循环遍历候选节点slice,没有看懂下面这么做的意义是啥？？？？？？？？？？？？？？？？
 	for k, node := range candidates {
-
+		//如果剩余节点slice没有满，直接放进去
 		if k < len(restNodes) {
 			//将节点加入剩余节点slice
 			restNodes[k] = node
-			//如果
+			//如果达到剩余节点slice标记为true
 			if k == len(restNodes)-1 {
 				ret = true
 			}
 		} else {
+			//没有看懂，为啥超过了，还继续替换老的值？？，为啥不退出,为了随机？
 			r := rand.Intn(k + 1)
 			if r < len(restNodes) {
 				restNodes[r] = node
@@ -204,22 +205,31 @@ func (n *NodeImpl) Parent() Node {
 func (n *NodeImpl) GetValue() interface{} {
 	return n.value
 }
+
+//储备一个卷
 func (n *NodeImpl) ReserveOneVolume(r int) (assignedNode *DataNode, err error) {
+	//加锁
 	n.RLock()
 	defer n.RUnlock()
+	//循环节点的孩子节点
 	for _, node := range n.children {
+		//获取孩子节点的剩余空间
 		freeSpace := node.FreeSpace()
 		// fmt.Println("r =", r, ", node =", node, ", freeSpace =", freeSpace)
+		//如果剩余空间<=0就跳过继续
 		if freeSpace <= 0 {
 			continue
 		}
+		//如果r值大于空闲空间,r值直接减掉空闲空间
 		if r >= freeSpace {
 			r -= freeSpace
 		} else {
+			//找到一个有剩余空间的数据节点，就返回
 			if node.IsDataNode() && node.FreeSpace() > 0 {
 				// fmt.Println("vid =", vid, " assigned to node =", node, ", freeSpace =", node.FreeSpace())
 				return node.(*DataNode), nil
 			}
+			//不是叶子节点就递归的处理
 			assignedNode, err = node.ReserveOneVolume(r)
 			if err != nil {
 				return
@@ -331,24 +341,31 @@ func (n *NodeImpl) UnlinkChildNode(nodeId NodeId) {
 	}
 }
 
+//收集死节点，和满了的卷
 func (n *NodeImpl) CollectDeadNodeAndFullVolumes(freshThreshHold int64, volumeSizeLimit uint64) {
+	//如果是机架节点,进行判断
 	if n.IsRack() {
 		for _, c := range n.Children() {
+			//按照数据节点转换
 			dn := c.(*DataNode) //can not cast n to DataNode
+			//如果上次被访问的时间比阈值早，将此节点设置为死节点
 			if dn.LastSeen < freshThreshHold {
 				if !dn.Dead {
 					dn.Dead = true
+					//将此节点放到待处理的死节点channel中
 					n.GetTopology().chanDeadDataNodes <- dn
 				}
 			}
+			//获取卷
 			for _, v := range dn.GetVolumes() {
+				//如果卷大小超过阈值,将此卷放入待处理的满了的卷中
 				if uint64(v.Size) >= volumeSizeLimit {
 					//fmt.Println("volume",v.Id,"size",v.Size,">",volumeSizeLimit)
 					n.GetTopology().chanFullVolumes <- v
 				}
 			}
 		}
-	} else {
+	} else { //如果是rack的上级节点,处理他的孩子节点
 		for _, c := range n.Children() {
 			c.CollectDeadNodeAndFullVolumes(freshThreshHold, volumeSizeLimit)
 		}
