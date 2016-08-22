@@ -9,8 +9,11 @@ import (
 )
 
 func loadVolumeWithoutIndex(dirname string, collection string, id VolumeId, needleMapKind NeedleMapType) (v *Volume, e error) {
+	//初始化卷信息
 	v = &Volume{dir: dirname, Collection: collection, Id: id}
+	//设置卷的超级块
 	v.SuperBlock = SuperBlock{}
+	//设置文件的映射类别
 	v.needleMapKind = needleMapKind
 	e = v.load(false, false, needleMapKind)
 	return
@@ -18,22 +21,31 @@ func loadVolumeWithoutIndex(dirname string, collection string, id VolumeId, need
 
 func (v *Volume) load(alsoLoadIndex bool, createDatIfMissing bool, needleMapKind NeedleMapType) error {
 	var e error
+	//拼接文件名
 	fileName := v.FileName()
 
+	//检查文件
 	if exists, canRead, canWrite, modifiedTime := checkFile(fileName + ".dat"); exists {
+		//不可读报错
 		if !canRead {
 			return fmt.Errorf("cannot read Volume Data file %s.dat", fileName)
 		}
+		//如果可写
 		if canWrite {
+			//打开文件
 			v.dataFile, e = os.OpenFile(fileName+".dat", os.O_RDWR|os.O_CREATE, 0644)
+			//修改最后修改的时间
 			v.lastModifiedTime = uint64(modifiedTime.Unix())
 		} else {
+			//不可写，打开文件，设置卷为只读
 			glog.V(0).Infoln("opening " + fileName + ".dat in READONLY mode")
 			v.dataFile, e = os.Open(fileName + ".dat")
 			v.readOnly = true
 		}
 	} else {
-		if createDatIfMissing {
+		//文件不存在
+		if createDatIfMissing { //如果设置了在没找到时创建
+			//创建文件
 			v.dataFile, e = os.OpenFile(fileName+".dat", os.O_RDWR|os.O_CREATE, 0644)
 		} else {
 			return fmt.Errorf("Volume Data file %s.dat does not exist.", fileName)
@@ -41,11 +53,11 @@ func (v *Volume) load(alsoLoadIndex bool, createDatIfMissing bool, needleMapKind
 	}
 
 	if e != nil {
-		if !os.IsPermission(e) {
+		if !os.IsPermission(e) { //没有权限时报错
 			return fmt.Errorf("cannot load Volume Data %s.dat: %v", fileName, e)
 		}
 	}
-
+	//如果没有设置复制策略
 	if v.ReplicaPlacement == nil {
 		e = v.readSuperBlock()
 	} else {
@@ -68,6 +80,7 @@ func (v *Volume) load(alsoLoadIndex bool, createDatIfMissing bool, needleMapKind
 			v.readOnly = true
 			glog.V(0).Infof("volumeDataIntegrityChecking failed %v", e)
 		}
+		//根据文件类型，获取不同的nm
 		switch needleMapKind {
 		case NeedleMapInMemory:
 			glog.V(0).Infoln("loading index file", fileName+".idx", "readonly", v.readOnly)
