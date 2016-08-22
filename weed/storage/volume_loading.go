@@ -89,19 +89,24 @@ func (v *Volume) load(alsoLoadIndex bool, createDatIfMissing bool, needleMapKind
 	return e
 }
 
+//检查文件
 func checkFile(filename string) (exists, canRead, canWrite bool, modTime time.Time) {
 	exists = true
 	fi, err := os.Stat(filename)
+	//文件是否存在
 	if os.IsNotExist(err) {
 		exists = false
 		return
 	}
+	//判断文件是否可读
 	if fi.Mode()&0400 != 0 {
 		canRead = true
 	}
+	//判断文件是否可写
 	if fi.Mode()&0200 != 0 {
 		canWrite = true
 	}
+	//文件的修改时间
 	modTime = fi.ModTime()
 	return
 }
