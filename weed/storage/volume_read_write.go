@@ -141,24 +141,31 @@ func (v *Volume) writeNeedle(n *Needle) (size uint32, err error) {
 	return
 }
 
+//删除文件
 func (v *Volume) deleteNeedle(n *Needle) (uint32, error) {
 	glog.V(4).Infof("delete needle %s", NewFileIdFromNeedle(v.Id, n).String())
-	if v.readOnly {
+	if v.readOnly { //如果卷只读，报错
 		return 0, fmt.Errorf("%s is read-only", v.dataFile.Name())
 	}
+	//加锁
 	v.dataFileAccessLock.Lock()
 	defer v.dataFileAccessLock.Unlock()
+	//通过id获取内容
 	nv, ok := v.nm.Get(n.Id)
 	//fmt.Println("key", n.Id, "volume offset", nv.Offset, "data_size", n.Size, "cached size", nv.Size)
 	if ok {
 		size := nv.Size
+		//删除nm中的内容
 		if err := v.nm.Delete(n.Id); err != nil {
 			return size, err
 		}
+		//定位到最后
 		if _, err := v.dataFile.Seek(0, 2); err != nil {
 			return size, err
 		}
+		//强制删除内容
 		n.Data = nil
+		//这个没有看懂
 		_, err := n.Append(v.dataFile, v.Version())
 		return size, err
 	}
@@ -166,29 +173,39 @@ func (v *Volume) deleteNeedle(n *Needle) (uint32, error) {
 }
 
 // read fills in Needle content by looking up n.Id from NeedleMapper
+//读取文件
 func (v *Volume) readNeedle(n *Needle) (int, error) {
+	//根据文件id获取
 	nv, ok := v.nm.Get(n.Id)
+	//如果nv.Offset == 0 报错
 	if !ok || nv.Offset == 0 {
 		return -1, errors.New("Not Found")
 	}
+	//根据offset，读取内容
 	err := n.ReadData(v.dataFile, int64(nv.Offset)*NeedlePaddingSize, nv.Size, v.Version())
 	if err != nil {
 		return 0, err
 	}
+	//初始化变量长度
 	bytesRead := len(n.Data)
+	//如果没有过期时间，直接返回长度
 	if !n.HasTtl() {
 		return bytesRead, nil
 	}
+	//有过期时间并且为0，返回长度
 	ttlMinutes := n.Ttl.Minutes()
 	if ttlMinutes == 0 {
 		return bytesRead, nil
 	}
+	//如果没有上次被修改的时间，直接返回长度
 	if !n.HasLastModifiedDate() {
 		return bytesRead, nil
 	}
+	//如果文件没有过期，返回长度
 	if uint64(time.Now().Unix()) < n.LastModified+uint64(ttlMinutes*60) {
 		return bytesRead, nil
 	}
+	//文件过期，释放内存
 	n.ReleaseMemory()
 	return -1, errors.New("Not Found")
 }
