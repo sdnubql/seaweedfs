@@ -13,11 +13,15 @@ import (
 
 // isFileUnchanged checks whether this needle to write is same as last one.
 // It requires serialized access in the same volume.
+//文件是否没有变化，防止重复提交
 func (v *Volume) isFileUnchanged(n *Needle) bool {
+	//如果有ttl返回false,这个是为啥？？？？？？？？没有看懂,为啥有ttl时间就认为没有相同呢,因为会自动过期？
 	if v.Ttl.String() != "" {
 		return false
 	}
+	//根据id获取
 	nv, ok := v.nm.Get(n.Id)
+	//根据Offset去截取
 	if ok && nv.Offset > 0 {
 		oldNeedle := new(Needle)
 		err := oldNeedle.ReadData(v.dataFile, int64(nv.Offset)*NeedlePaddingSize, nv.Size, v.Version())
@@ -26,6 +30,7 @@ func (v *Volume) isFileUnchanged(n *Needle) bool {
 			return false
 		}
 		defer oldNeedle.ReleaseMemory()
+		//比较checksum，和字节比较
 		if oldNeedle.Checksum == n.Checksum && bytes.Equal(oldNeedle.Data, n.Data) {
 			n.DataSize = oldNeedle.DataSize
 			return true
@@ -35,84 +40,101 @@ func (v *Volume) isFileUnchanged(n *Needle) bool {
 }
 
 // Destroy removes everything related to this volume
+//销毁掉此卷关联的所有的信息
 func (v *Volume) Destroy() (err error) {
-	if v.readOnly {
+	if v.readOnly { //如果卷只读，报错
 		err = fmt.Errorf("%s is read-only", v.dataFile.Name())
 		return
 	}
 	v.Close()
+	//删除文件
 	err = os.Remove(v.dataFile.Name())
 	if err != nil {
 		return
 	}
+	//销毁
 	err = v.nm.Destroy()
 	return
 }
 
 // AppendBlob append a blob to end of the data file, used in replication
+//追加对象文件到数据文件末尾，用于复制
 func (v *Volume) AppendBlob(b []byte) (offset int64, err error) {
-	if v.readOnly {
+	if v.readOnly { //如果只读报错
 		err = fmt.Errorf("%s is read-only", v.dataFile.Name())
 		return
 	}
+	//加锁
 	v.dataFileAccessLock.Lock()
 	defer v.dataFileAccessLock.Unlock()
+	//倒着读文件
 	if offset, err = v.dataFile.Seek(0, 2); err != nil {
 		glog.V(0).Infof("failed to seek the end of file: %v", err)
 		return
 	}
 	//ensure file writing starting from aligned positions
-	if offset%NeedlePaddingSize != 0 {
+	if offset%NeedlePaddingSize != 0 { //如果没有对齐
+		//重新对齐
 		offset = offset + (NeedlePaddingSize - offset%NeedlePaddingSize)
 		if offset, err = v.dataFile.Seek(offset, 0); err != nil {
 			glog.V(0).Infof("failed to align in datafile %s: %v", v.dataFile.Name(), err)
 			return
 		}
 	}
+	//把内容写到数据文件中
 	v.dataFile.Write(b)
 	return
 }
 
+//写文件
 func (v *Volume) writeNeedle(n *Needle) (size uint32, err error) {
 	glog.V(4).Infof("writing needle %s", NewFileIdFromNeedle(v.Id, n).String())
-	if v.readOnly {
+	if v.readOnly { //如果卷只读，报错
 		err = fmt.Errorf("%s is read-only", v.dataFile.Name())
 		return
 	}
+	//加锁
 	v.dataFileAccessLock.Lock()
 	defer v.dataFileAccessLock.Unlock()
+	//如果文件已经写过，直接返回
 	if v.isFileUnchanged(n) {
 		size = n.DataSize
 		glog.V(4).Infof("needle is unchanged!")
 		return
 	}
 	var offset int64
+	//定位到末尾
 	if offset, err = v.dataFile.Seek(0, 2); err != nil {
 		glog.V(0).Infof("failed to seek the end of file: %v", err)
 		return
 	}
 
 	//ensure file writing starting from aligned positions
+	//如果没有对齐
 	if offset%NeedlePaddingSize != 0 {
 		offset = offset + (NeedlePaddingSize - offset%NeedlePaddingSize)
+		//对齐节点
 		if offset, err = v.dataFile.Seek(offset, 0); err != nil {
 			glog.V(0).Infof("failed to align in datafile %s: %v", v.dataFile.Name(), err)
 			return
 		}
 	}
-
+	//写内容，如果出错了，truncate，已经写过了的内容
 	if size, err = n.Append(v.dataFile, v.Version()); err != nil {
 		if e := v.dataFile.Truncate(offset); e != nil {
 			err = fmt.Errorf("%s\ncannot truncate %s: %v", err, v.dataFile.Name(), e)
 		}
 		return
 	}
+	跟id去获取写入的内容
 	nv, ok := v.nm.Get(n.Id)
+	//如果不对，写日志
 	if !ok || int64(nv.Offset)*NeedlePaddingSize < offset {
 		if err = v.nm.Put(n.Id, uint32(offset/NeedlePaddingSize), n.Size); err != nil {
 			glog.V(4).Infof("failed to save in needle map %d: %v", n.Id, err)
 		}
 	}
+	//设置最大修改时间
 	if v.lastModifiedTime < n.LastModified {
 		v.lastModifiedTime = n.LastModified
 	}
