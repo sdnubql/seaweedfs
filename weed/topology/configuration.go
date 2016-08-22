@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 )
 
+//机架和数据中心的位置
 type loc struct {
 	dcName   string
 	rackName string
@@ -28,8 +29,11 @@ type topology struct {
 
 //config配置结构
 type Configuration struct {
-	XMLName     xml.Name `xml:"Configuration"`
-	Topo        topology `xml:"Topology"`
+	//配置名称
+	XMLName xml.Name `xml:"Configuration"`
+	//拓扑
+	Topo topology `xml:"Topology"`
+	//根据ip反查位置的映射表
 	ip2location map[string]loc
 }
 
@@ -38,6 +42,7 @@ func NewConfiguration(b []byte) (*Configuration, error) {
 	c := &Configuration{}
 	err := xml.Unmarshal(b, c)
 	c.ip2location = make(map[string]loc)
+	//直接循环数据中心和机架，用ip做key，来映射ip和数据中心，机架之间的映射关系
 	for _, dc := range c.Topo.DataCenters {
 		for _, rack := range dc.Racks {
 			for _, ip := range rack.Ips {
@@ -56,17 +61,21 @@ func (c *Configuration) String() string {
 	return ""
 }
 
+//根据ip去找到映射关系
 func (c *Configuration) Locate(ip string, dcName string, rackName string) (dc string, rack string) {
+	//如果能用ip找到映射关系，直接返回ip映射中的机架名称和数据中心的名称
 	if c != nil && c.ip2location != nil {
 		if loc, ok := c.ip2location[ip]; ok {
 			return loc.dcName, loc.rackName
 		}
 	}
 
+	//如果没找到返回默认的数据中心值
 	if dcName == "" {
 		dcName = "DefaultDataCenter"
 	}
 
+	//如果没找到返回默认的机架值
 	if rackName == "" {
 		rackName = "DefaultRack"
 	}
