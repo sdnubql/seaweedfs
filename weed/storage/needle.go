@@ -47,6 +47,7 @@ type Needle struct {
 	rawBlock *Block // underlying supporing []byte, fetched and released into a pool
 }
 
+//Needle实现String方法,便于打印
 func (n *Needle) String() (str string) {
 	str = fmt.Sprintf("Cookie:%d, Id:%d, Size:%d, DataSize:%d, Name: %s, Mime: %s", n.Cookie, n.Id, n.Size, n.DataSize, n.Name, n.Mime)
 	return
@@ -211,18 +212,24 @@ func (n *Needle) ParsePath(fid string) (err error) {
 	return err
 }
 
+//文件key和hash的解析函数
 func ParseKeyHash(key_hash_string string) (uint64, uint32, error) {
+	//长度小于8，报错
 	if len(key_hash_string) <= 8 {
 		return 0, 0, fmt.Errorf("KeyHash is too short.")
 	}
+	//长度大于24报错
 	if len(key_hash_string) > 24 {
 		return 0, 0, fmt.Errorf("KeyHash is too long.")
 	}
+	//获取分割点
 	split := len(key_hash_string) - 8
+	//解析key，长度减去固定的8
 	key, err := strconv.ParseUint(key_hash_string[:split], 16, 64)
 	if err != nil {
 		return 0, 0, fmt.Errorf("Parse key error: %v", err)
 	}
+	//hash占固定的末尾8位
 	hash, err := strconv.ParseUint(key_hash_string[split:], 16, 32)
 	if err != nil {
 		return 0, 0, fmt.Errorf("Parse hash error: %v", err)
