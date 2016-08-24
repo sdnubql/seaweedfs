@@ -34,19 +34,25 @@ func LoadNeedleMap(file *os.File) (*NeedleMap, error) {
 	//先初始化NeedleMap
 	nm := NewNeedleMap(file)
 	e := WalkIndexFile(file, func(key uint64, offset, size uint32) error {
+		//构建索引结构
 		if key > nm.MaximumFileKey {
 			nm.MaximumFileKey = key
 		}
+		//增加文件变更次数
 		nm.FileCounter++
+		//增加文件变更的大小
 		nm.FileByteCounter = nm.FileByteCounter + uint64(size)
 		if offset > 0 {
+			//修改
 			oldSize := nm.m.Set(Key(key), offset, size)
 			glog.V(3).Infoln("reading key", key, "offset", offset*NeedlePaddingSize, "size", size, "oldSize", oldSize)
 			if oldSize > 0 {
+				//修改时，对老数据的做删除计数
 				nm.DeletionCounter++
 				nm.DeletionByteCounter = nm.DeletionByteCounter + uint64(oldSize)
 			}
 		} else {
+			//删除的处理
 			oldSize := nm.m.Delete(Key(key))
 			glog.V(3).Infoln("removing key", key, "offset", offset*NeedlePaddingSize, "size", size, "oldSize", oldSize)
 			nm.DeletionCounter++
@@ -62,10 +68,14 @@ func LoadNeedleMap(file *os.File) (*NeedleMap, error) {
 // stops with the error returned by the fn function
 func WalkIndexFile(r *os.File, fn func(key uint64, offset, size uint32) error) error {
 	var readerOffset int64
+	//定义长度为16个字节x1024行
 	bytes := make([]byte, 16*RowsToRead)
+	//读取这么多字节
 	count, e := r.ReadAt(bytes, readerOffset)
 	glog.V(3).Infoln("file", r.Name(), "readerOffset", readerOffset, "count", count, "e", e)
+	//记录读取的位置
 	readerOffset += int64(count)
+	//定义变量
 	var (
 		key          uint64
 		offset, size uint32
@@ -73,17 +83,23 @@ func WalkIndexFile(r *os.File, fn func(key uint64, offset, size uint32) error) e
 	)
 
 	for count > 0 && e == nil || e == io.EOF {
+		//把读出来的count循环完,16个字节一个
 		for i = 0; i+16 <= count; i += 16 {
+			//解析file实体
 			key, offset, size = idxFileEntry(bytes[i : i+16])
+			//循环调用fn函数,如果失败返回
 			if e = fn(key, offset, size); e != nil {
 				return e
 			}
 		}
+		//如果读到末尾，返回
 		if e == io.EOF {
 			return nil
 		}
+		//读完了，重新读取
 		count, e = r.ReadAt(bytes, readerOffset)
 		glog.V(3).Infoln("file", r.Name(), "readerOffset", readerOffset, "count", count, "e", e)
+		//在去挪偏移指针
 		readerOffset += int64(count)
 	}
 	return e
