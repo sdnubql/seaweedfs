@@ -60,6 +60,7 @@ func (cs *CompactSection) Set(key Key, offset uint32, size uint32) uint32 {
 	} else { //key不存在
 		//判断数量是否比预定义的还大
 		needOverflow := cs.counter >= batch
+		//加的这个,用两种结构，为啥不统一用hash呢
 		needOverflow = needOverflow || cs.counter > 0 && cs.values[cs.counter-1].Key > key
 		if needOverflow { //需要溢出时
 			//println("start", cs.start, "counter", cs.counter, "key", key)
@@ -74,6 +75,7 @@ func (cs *CompactSection) Set(key Key, offset uint32, size uint32) uint32 {
 			p := &cs.values[cs.counter]
 			p.Key, p.Offset, p.Size = key, offset, size
 			//println("added index", cs.counter, "key", key, cs.values[cs.counter].Key)
+			//把数量加1
 			cs.counter++
 		}
 	}
@@ -169,7 +171,7 @@ func (cm *CompactMap) Set(key Key, offset uint32, size uint32) uint32 {
 		cm.list = append(cm.list, NewCompactSection(key))
 		x = len(cm.list) - 1
 		//keep compact section sorted by start
-		for x > 0 { //强制排序
+		for x > 0 { //强制排序,需要，对上面返回值为-3的处理，就是挪顺序
 			if cm.list[x-1].start > cm.list[x].start {
 				cm.list[x-1], cm.list[x] = cm.list[x], cm.list[x-1]
 				x = x - 1
