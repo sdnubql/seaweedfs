@@ -4,6 +4,7 @@ import (
 	"runtime"
 )
 
+//内存的状态
 type MemStatus struct {
 	Goroutines int
 	All        uint64
@@ -14,6 +15,7 @@ type MemStatus struct {
 	Stack      uint64
 }
 
+//构造函数
 func MemStat() MemStatus {
 	mem := MemStatus{}
 	mem.Goroutines = runtime.NumGoroutine()
